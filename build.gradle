@@ -4,10 +4,11 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        # Versão do plugin compatível com Gradle 8 e Java 17
+        // Versão do plugin compatível com Gradle 8 e Java 17
         classpath 'com.android.tools.build:gradle:8.1.0'
     }
 }
+
 allprojects {
     repositories {
         google()
