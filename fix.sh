@@ -1,39 +1,28 @@
 #!/bin/bash
 
-# 1. Limpar a sujidade local que está a causar erro
-echo "🧹 Limpando arquivos corrompidos..."
-rm -f gradlew
-rm -f gradle/wrapper/gradle-wrapper.jar
-rm -f gradle/wrapper/gradle-wrapper.properties
+echo "☕ Atualizando para Java 17 e Gradle moderno..."
 
-# 2. Criar o novo ficheiro de Workflow (O cérebro da operação)
-# Este ficheiro diz ao GitHub para ele mesmo gerar o Gradle
-echo "📝 Atualizando configuração do GitHub Actions..."
+# 1. Atualizar o Workflow para Java 17
 mkdir -p .github/workflows
-
 cat <<EOF > .github/workflows/android.yml
 name: Android CI
-
 on: [push]
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: set up JDK 11
+      - name: set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '11'
+          java-version: '17'
           distribution: 'temurin'
           cache: gradle
 
       - name: Regenerate Gradle Wrapper
         run: |
-          # Aqui o GitHub gera o arquivo que estava dando erro no seu PC
-          gradle wrapper --gradle-version 6.5
+          # Gera o wrapper compatível com Java 17
+          gradle wrapper --gradle-version 8.5
 
       - name: Build with Gradle
         run: |
@@ -47,11 +36,29 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
 EOF
 
+# 2. Pequeno ajuste no build.gradle da raiz (necessário para Gradle 8+)
+cat <<EOF > build.gradle
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        # Versão do plugin compatível com Gradle 8 e Java 17
+        classpath 'com.android.tools.build:gradle:8.1.0'
+    }
+}
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+EOF
+
 # 3. Enviar para o GitHub
-echo "🚀 Enviando correções..."
 git add .
-git commit -m "Fix: Deixando o GitHub gerar o Gradle Wrapper"
+git commit -m "Fix: Atualizando para Java 17 e Gradle 8.5"
 git push origin main
 
-echo "✅ FEITO! Agora vá à aba 'Actions' no seu link:"
-echo "https://github.com/salyan-scripts/FileManager/actions"
+echo "🚀 Pronto! Agora o GitHub vai usar o Java 17 e não deve mais reclamar da versão."
