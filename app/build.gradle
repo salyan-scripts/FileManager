@@ -1,19 +1,26 @@
-plugins { id 'com.android.application' }
+plugins {
+    id 'com.android.application'
+}
 
 android {
     namespace 'com.salyan.filemanager'
     compileSdk 33
+
     defaultConfig {
         applicationId "com.salyan.filemanager"
         minSdk 21
         targetSdk 33
         versionCode 1
         versionName "1.0"
-        ndk { abiFilters "armeabi-v7a", "arm64-v8a" }
+        
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a"
+        }
     }
+
     buildTypes {
         release {
-            minifyEnabled true
+            minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
         }
     }
