@@ -6,8 +6,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
-        with: { java-version: '17', distribution: 'temurin', cache: gradle }
-      - run: chmod +x gradlew
-      - run: ./gradlew assembleRelease
+        with: { java-version: '17', distribution: 'temurin' }
+      
+      - name: Generate Wrapper and Build
+        run: |
+          # Usa o gradle pré-instalado no runner para criar o wrapper correto
+          gradle wrapper --gradle-version 7.5
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
       - uses: actions/upload-artifact@v4
-        with: { name: Salyan-Manager, path: app/build/outputs/apk/release/*.apk }
+        with: { name: Salyan-Manager-v2, path: app/build/outputs/apk/release/*.apk }
