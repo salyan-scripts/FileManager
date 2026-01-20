@@ -1,7 +1,11 @@
 package com.salyan.filemanager;
 
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.widget.*;
@@ -18,51 +22,45 @@ public class MainActivity extends AppCompatActivity {
     private File fileToCopy = null;
     private ArrayAdapter<String> adapter;
     private ArrayList<String> fileList = new ArrayList<>();
+    private TextView pathDisplay;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Layout principal
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(16, 16, 16, 16);
+        layout.setPadding(20, 20, 20, 20);
 
-        // Ferramentas
-        LinearLayout topBar = new LinearLayout(this);
-        Button btnNew = new Button(this); btnNew.setText("Nova Pasta");
-        Button btnPaste = new Button(this); btnPaste.setText("Colar");
-        topBar.addView(btnNew); topBar.addView(btnPaste);
-        layout.addView(topBar);
+        // Indicador de Caminho (Breadcrumb)
+        pathDisplay = new TextView(this);
+        pathDisplay.setPadding(0, 10, 0, 10);
+        pathDisplay.setTextSize(14);
+        layout.addView(pathDisplay);
 
-        // Busca
+        // Barra de Busca
         EditText search = new EditText(this);
-        search.setHint("Buscar...");
+        search.setHint("🔍 Buscar arquivos...");
         layout.addView(search);
+
+        // Botões
+        LinearLayout btnBar = new LinearLayout(this);
+        Button btnNew = new Button(this); btnNew.setText("📁 Nova Pasta");
+        Button btnPaste = new Button(this); btnPaste.setText("📋 Colar");
+        btnBar.addView(btnNew); btnBar.addView(btnPaste);
+        layout.addView(btnBar);
 
         listView = new ListView(this);
         layout.addView(listView);
         setContentView(layout);
 
+        checkPermissions();
+
         currentDir = Environment.getExternalStorageDirectory();
         loadFiles();
 
-        btnNew.setOnClickListener(v -> {
-            EditText in = new EditText(this);
-            new AlertDialog.Builder(this).setTitle("Nova Pasta").setView(in)
-                .setPositiveButton("Criar", (d, w) -> {
-                    if(new File(currentDir, in.getText().toString()).mkdir()) loadFiles();
-                }).show();
-        });
-
-        btnPaste.setOnClickListener(v -> {
-            if(fileToCopy != null) {
-                try {
-                    copy(fileToCopy, new File(currentDir, fileToCopy.getName()));
-                    loadFiles();
-                    Toast.makeText(this, "Colado!", Toast.LENGTH_SHORT).show();
-                } catch (Exception e) { e.printStackTrace(); }
-            }
-        });
-
+        // Lógica de Busca
         search.addTextChangedListener(new TextWatcher() {
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if(adapter != null) adapter.getFilter().filter(s);
@@ -71,36 +69,98 @@ public class MainActivity extends AppCompatActivity {
             public void afterTextChanged(Editable s) {}
         });
 
+        // Clique para Navegar
         listView.setOnItemClickListener((p, v, pos, id) -> {
-            File f = new File(currentDir, (String) p.getItemAtPosition(pos));
-            if(f.isDirectory()) { currentDir = f; search.setText(""); loadFiles(); }
+            String selected = (String) p.getItemAtPosition(pos);
+            // Remove o emoji para pegar o nome real do arquivo
+            String realName = selected.substring(3);
+            File f = new File(currentDir, realName);
+            if(f.isDirectory()) {
+                currentDir = f;
+                search.setText("");
+                loadFiles();
+            }
         });
 
+        // Clique Longo para Opções
         listView.setOnItemLongClickListener((p, v, pos, id) -> {
-            String name = (String) p.getItemAtPosition(pos);
-            String[] opts = {"Copiar", "Deletar"};
-            new AlertDialog.Builder(this).setTitle(name).setItems(opts, (d, w) -> {
-                if(w == 0) { fileToCopy = new File(currentDir, name); Toast.makeText(this, "Copiado", Toast.LENGTH_SHORT).show(); }
-                else { if(new File(currentDir, name).delete()) loadFiles(); }
-            }).show();
+            String selected = (String) p.getItemAtPosition(pos);
+            String realName = selected.substring(3);
+            showOptions(realName);
             return true;
         });
+
+        btnNew.setOnClickListener(v -> showNewFolderDialog());
+        btnPaste.setOnClickListener(v -> pasteFile());
+    }
+
+    private void checkPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                Uri uri = Uri.fromParts("package", getPackageName(), null);
+                intent.setData(uri);
+                startActivity(intent);
+            }
+        }
     }
 
     private void loadFiles() {
+        pathDisplay.setText("Local: " + currentDir.getAbsolutePath());
         File[] files = currentDir.listFiles();
         fileList.clear();
-        if(files != null) for(File f : files) fileList.add(f.getName());
+        if(files != null) {
+            for(File f : files) {
+                String prefix = f.isDirectory() ? "📁 " : "📄 ";
+                fileList.add(prefix + f.getName());
+            }
+        }
         Collections.sort(fileList);
         adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, fileList);
         listView.setAdapter(adapter);
     }
 
-    private void copy(File s, File d) throws IOException {
-        try (FileChannel i = new FileInputStream(s).getChannel();
-             FileChannel o = new FileOutputStream(d).getChannel()) {
-            o.transferFrom(i, 0, i.size());
+    private void showOptions(String name) {
+        String[] opts = {"Copiar", "Renomear", "Deletar"};
+        new AlertDialog.Builder(this).setTitle(name).setItems(opts, (d, w) -> {
+            File f = new File(currentDir, name);
+            if(w == 0) { fileToCopy = f; Toast.makeText(this, "Copiado", Toast.LENGTH_SHORT).show(); }
+            else if(w == 1) showRename(name);
+            else if(f.delete()) loadFiles();
+        }).show();
+    }
+
+    private void pasteFile() {
+        if(fileToCopy == null) return;
+        File dest = new File(currentDir, fileToCopy.getName());
+        try {
+            copyStream(fileToCopy, dest);
+            loadFiles();
+            Toast.makeText(this, "Sucesso!", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) { Toast.makeText(this, "Erro", Toast.LENGTH_SHORT).show(); }
+    }
+
+    private void copyStream(File s, File d) throws IOException {
+        try (InputStream in = new FileInputStream(s); OutputStream out = new FileOutputStream(d)) {
+            byte[] buf = new byte[1024]; int len;
+            while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
         }
+    }
+
+    private void showNewFolderDialog() {
+        EditText in = new EditText(this);
+        new AlertDialog.Builder(this).setTitle("Nova Pasta").setView(in)
+            .setPositiveButton("Criar", (d, w) -> {
+                if(new File(currentDir, in.getText().toString()).mkdir()) loadFiles();
+            }).show();
+    }
+
+    private void showRename(String oldName) {
+        EditText in = new EditText(this); in.setText(oldName);
+        new AlertDialog.Builder(this).setTitle("Renomear").setView(in)
+            .setPositiveButton("OK", (d, w) -> {
+                if(new File(currentDir, oldName).renameTo(new File(currentDir, in.getText().toString()))) loadFiles();
+            }).show();
     }
 
     @Override
