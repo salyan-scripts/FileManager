@@ -6,6 +6,8 @@ import android.os.*;
 import android.provider.Settings;
 import android.view.*;
 import android.widget.*;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import java.io.*;
@@ -15,110 +17,112 @@ import java.util.*;
 public class MainActivity extends AppCompatActivity {
     private File currentDir;
     private ListView listView;
-    private TextView pathDisplay;
-    private File fileToMoveOrCopy = null;
-    private boolean isCut = false;
+    private List<File> fileList = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Layout Principal (Cópia fiel do seu modelo)
-        LinearLayout mainLayout = new LinearLayout(this);
-        mainLayout.setOrientation(LinearLayout.VERTICAL);
-        mainLayout.setBackgroundColor(0xFFF0F0F0);
+        // Layout Principal
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.WHITE);
 
-        // Toolbar superior (Adm. de arquivos)
-        TextView toolbar = new TextView(this);
-        toolbar.setText(" Adm. de arquivos");
-        toolbar.setTextSize(20);
-        toolbar.setPadding(30, 40, 30, 40);
-        toolbar.setBackgroundColor(0xFFFFFFFF);
-        mainLayout.addView(toolbar);
+        // Header (Toolbar)
+        TextView header = new TextView(this);
+        header.setText("Salyan File Manager");
+        header.setTextSize(22);
+        header.setPadding(40, 50, 40, 50);
+        header.setTextColor(Color.BLACK);
+        header.setTypeface(null, Typeface.BOLD);
+        root.addView(header);
 
-        // Sistema de Abas (Tabs)
-        HorizontalScrollView tabScroll = new HorizontalScrollView(this);
+        // Abas de Navegação (Estilo LG/Samsung)
         LinearLayout tabs = new LinearLayout(this);
-        String[] tabNames = {"↑", "Memória interna", "Android", "data"};
-        for (String tabName : tabNames) {
-            Button b = new Button(this, null, android.R.attr.borderlessButtonStyle);
-            b.setText(tabName);
-            tabs.addView(b);
-            if(tabName.equals("Memória interna")) b.setOnClickListener(v -> {
-                currentDir = Environment.getExternalStorageDirectory();
-                loadFiles();
-            });
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        String[] locations = {"Início", "Android", "Download"};
+        for (String loc : locations) {
+            Button btn = new Button(this, null, android.R.attr.borderlessButtonStyle);
+            btn.setText(loc);
+            btn.setOnClickListener(v -> navigateTo(loc));
+            tabs.addView(btn);
         }
-        tabScroll.addView(tabs);
-        mainLayout.addView(tabScroll);
+        root.addView(tabs);
 
-        // Área de conteúdo
+        // Lista de Arquivos
         listView = new ListView(this);
-        listView.setBackgroundColor(0xFFFFFFFF);
-        mainLayout.addView(listView);
+        root.addView(listView);
 
-        setContentView(mainLayout);
-        checkPermissions();
+        setContentView(root);
+
         currentDir = Environment.getExternalStorageDirectory();
+        checkPermissions();
         loadFiles();
 
         listView.setOnItemClickListener((p, v, pos, id) -> {
-            File f = (File) v.getTag();
-            if(f.isDirectory()) { currentDir = f; loadFiles(); }
+            File f = fileList.get(pos);
+            if (f.isDirectory()) {
+                currentDir = f;
+                loadFiles();
+            }
         });
+    }
 
-        listView.setOnItemLongClickListener((p, v, pos, id) -> {
-            showContextMenu((File) v.getTag());
-            return true;
-        });
+    private void navigateTo(String loc) {
+        if (loc.equals("Início")) currentDir = Environment.getExternalStorageDirectory();
+        else if (loc.equals("Android")) currentDir = new File(Environment.getExternalStorageDirectory(), "Android");
+        else if (loc.equals("Download")) currentDir = new File(Environment.getExternalStorageDirectory(), "Download");
+        loadFiles();
     }
 
     private void loadFiles() {
         File[] files = currentDir.listFiles();
-        List<File> fileList = new ArrayList<>();
-        if(files != null) Collections.addAll(fileList, files);
-        
-        BaseAdapter adapter = new BaseAdapter() {
+        fileList.clear();
+        if (files != null) {
+            fileList.addAll(Arrays.asList(files));
+            Collections.sort(fileList, (a, b) -> a.isDirectory() && !b.isDirectory() ? -1 : 1);
+        }
+
+        listView.setAdapter(new BaseAdapter() {
             @Override public int getCount() { return fileList.size(); }
             @Override public Object getItem(int i) { return fileList.get(i); }
             @Override public long getItemId(int i) { return i; }
             @Override public View getView(int i, View view, ViewGroup vg) {
-                if(view == null) view = getLayoutInflater().inflate(R.layout.line_item, null);
+                LinearLayout itemLayout = new LinearLayout(MainActivity.this);
+                itemLayout.setPadding(30, 30, 30, 30);
+                
+                TextView icon = new TextView(MainActivity.this);
                 File f = fileList.get(i);
-                ((TextView)view.findViewById(R.id.item_icon)).setText(f.isDirectory() ? "📁" : "📄");
-                ((TextView)view.findViewById(R.id.item_name)).setText(f.getName());
-                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
-                ((TextView)view.findViewById(R.id.item_date)).setText(sdf.format(new Date(f.lastModified())));
-                view.setTag(f);
-                return view;
+                icon.setText(f.isDirectory() ? "📁 " : "📄 ");
+                icon.setTextSize(24);
+                
+                TextView name = new TextView(MainActivity.this);
+                name.setText(f.getName());
+                name.setTextSize(16);
+                name.setTextColor(Color.BLACK);
+
+                itemLayout.addView(icon);
+                itemLayout.addView(name);
+                return itemLayout;
             }
-        };
-        listView.setAdapter(adapter);
-    }
-
-    private void showContextMenu(File f) {
-        String[] opts = {"Apagar", "Mover", "Copiar", "Renomear"};
-        new AlertDialog.Builder(this).setTitle(f.getName()).setItems(opts, (d, w) -> {
-            if(w == 0) { f.delete(); loadFiles(); }
-            else if(w == 1) { fileToMoveOrCopy = f; isCut = true; Toast.makeText(this, "Selecione o destino e use o menu", Toast.LENGTH_LONG).show(); }
-            else if(w == 2) { fileToMoveOrCopy = f; isCut = false; }
-            else if(w == 3) showRenameDialog(f);
-        }).show();
-    }
-
-    private void showRenameDialog(File f) {
-        EditText input = new EditText(this);
-        input.setText(f.getName());
-        new AlertDialog.Builder(this).setTitle("Renomear").setView(input)
-            .setPositiveButton("OK", (d, w) -> {
-                f.renameTo(new File(f.getParent(), input.getText().toString()));
-                loadFiles();
-            }).show();
+        });
     }
 
     private void checkPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
-            startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.fromParts("package", getPackageName(), null)));
+            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (!currentDir.equals(Environment.getExternalStorageDirectory())) {
+            currentDir = currentDir.getParentFile();
+            loadFiles();
+        } else {
+            super.onBackPressed();
         }
     }
 }
