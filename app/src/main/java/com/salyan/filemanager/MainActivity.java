@@ -2,6 +2,8 @@ package com.salyan.filemanager;
 
 import android.os.Bundle;
 import android.os.Environment;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.widget.*;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -13,16 +15,25 @@ import java.util.Collections;
 public class MainActivity extends AppCompatActivity {
     private File currentDir;
     private ListView listView;
-    private File fileToCopy = null; // Memória para copiar/colar
+    private File fileToCopy = null;
+    private ArrayAdapter<String> adapter;
+    private ArrayList<String> fileList = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Layout dinâmico simples para incluir botão de "Nova Pasta" e "Colar"
+        // Layout Principal
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        
+        layout.setPadding(16, 16, 16, 16);
+
+        // Barra de Busca
+        EditText searchBar = new EditText(this);
+        searchBar.setHint("Buscar arquivos...");
+        layout.addView(searchBar);
+
+        // Botões de Ação
         LinearLayout topBar = new LinearLayout(this);
         Button btnNewFolder = new Button(this);
         btnNewFolder.setText("Nova Pasta");
@@ -43,77 +54,78 @@ public class MainActivity extends AppCompatActivity {
         currentDir = Environment.getExternalStorageDirectory();
         loadFiles();
 
+        // Lógica de Busca
+        searchBar.addTextChangedListener(new TextWatcher() {
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                adapter.getFilter().filter(s);
+            }
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void afterTextChanged(Editable s) {}
+        });
+
         listView.setOnItemClickListener((parent, view, position, id) -> {
             String name = (String) parent.getItemAtPosition(position);
             File clickedFile = new File(currentDir, name);
             if (clickedFile.isDirectory()) {
                 currentDir = clickedFile;
                 loadFiles();
+                searchBar.setText(""); // Limpa busca ao navegar
             }
         });
 
         listView.setOnItemLongClickListener((parent, view, position, id) -> {
-            String fileName = (String) parent.getItemAtPosition(position);
-            showOptionsDialog(fileName);
+            showOptionsDialog((String) parent.getItemAtPosition(position));
             return true;
         });
     }
 
     private void loadFiles() {
         File[] files = currentDir.listFiles();
-        ArrayList<String> fileList = new ArrayList<>();
+        fileList.clear();
         if (files != null) {
             for (File file : files) fileList.add(file.getName());
         }
         Collections.sort(fileList);
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, fileList);
+        adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, fileList);
         listView.setAdapter(adapter);
     }
 
     private void showOptionsDialog(String fileName) {
         String[] options = {"Copiar", "Renomear", "Deletar"};
-        new AlertDialog.Builder(this)
-            .setTitle(fileName)
-            .setItems(options, (dialog, which) -> {
-                if (which == 0) {
-                    fileToCopy = new File(currentDir, fileName);
-                    Toast.makeText(this, "Copiado para a área de transferência", Toast.LENGTH_SHORT).show();
-                }
-                else if (which == 1) showRenameDialog(fileName);
-                else if (which == 2) showDeleteConfirm(fileName);
-            }).show();
+        new AlertDialog.Builder(this).setTitle(fileName).setItems(options, (dialog, which) -> {
+            if (which == 0) {
+                fileToCopy = new File(currentDir, fileName);
+                Toast.makeText(this, "Copiado: " + fileName, Toast.LENGTH_SHORT).show();
+            } else if (which == 1) showRenameDialog(fileName);
+            else if (which == 2) showDeleteConfirm(fileName);
+        }).show();
+    }
+
+    private void pasteFile() {
+        if (fileToCopy == null) return;
+        File dest = new File(currentDir, fileToCopy.getName());
+        try {
+            if (fileToCopy.isDirectory()) Toast.makeText(this, "Pasta não suportada no copiar ainda", Toast.LENGTH_SHORT).show();
+            else {
+                copyFile(fileToCopy, dest);
+                loadFiles();
+            }
+        } catch (IOException e) { e.printStackTrace(); }
+    }
+
+    private void copyFile(File src, File dst) throws IOException {
+        try (FileChannel in = new FileInputStream(src).getChannel();
+             FileChannel out = new FileOutputStream(dst).getChannel()) {
+            out.transferFrom(in, 0, in.size());
+        }
     }
 
     private void showNewFolderDialog() {
         EditText input = new EditText(this);
         new AlertDialog.Builder(this).setTitle("Nova Pasta").setView(input)
             .setPositiveButton("Criar", (d, w) -> {
-                File newDir = new File(currentDir, input.getText().toString());
-                if (newDir.mkdir()) loadFiles();
-                else Toast.makeText(this, "Erro ao criar pasta", Toast.LENGTH_SHORT).show();
+                if (new File(currentDir, input.getText().toString()).mkdir()) loadFiles();
             }).show();
-    }
-
-    private void pasteFile() {
-        if (fileToCopy == null) {
-            Toast.makeText(this, "Nada para colar", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        File dest = new File(currentDir, fileToCopy.getName());
-        try {
-            copyFile(fileToCopy, dest);
-            loadFiles();
-            Toast.makeText(this, "Colado!", Toast.LENGTH_SHORT).show();
-        } catch (IOException e) {
-            Toast.makeText(this, "Erro ao colar: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void copyFile(File source, File dest) throws IOException {
-        try (FileChannel in = new FileInputStream(source).getChannel();
-             FileChannel out = new FileOutputStream(dest).getChannel()) {
-            out.transferFrom(in, 0, in.size());
-        }
     }
 
     private void showRenameDialog(String oldName) {
@@ -121,9 +133,7 @@ public class MainActivity extends AppCompatActivity {
         input.setText(oldName);
         new AlertDialog.Builder(this).setTitle("Renomear").setView(input)
             .setPositiveButton("OK", (d, w) -> {
-                File oldF = new File(currentDir, oldName);
-                File newF = new File(currentDir, input.getText().toString());
-                if (oldF.renameTo(newF)) loadFiles();
+                if (new File(currentDir, oldName).renameTo(new File(currentDir, input.getText().toString()))) loadFiles();
             }).show();
     }
 
@@ -131,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
         new AlertDialog.Builder(this).setTitle("Excluir").setMessage("Apagar " + fileName + "?")
             .setPositiveButton("Sim", (d, w) -> {
                 if (new File(currentDir, fileName).delete()) loadFiles();
-            }).setNegativeButton("Não", null).show();
+            }).show();
     }
 
     @Override
@@ -139,8 +149,6 @@ public class MainActivity extends AppCompatActivity {
         if (!currentDir.equals(Environment.getExternalStorageDirectory())) {
             currentDir = currentDir.getParentFile();
             loadFiles();
-        } else {
-            super.onBackPressed();
-        }
+        } else super.onBackPressed();
     }
 }
