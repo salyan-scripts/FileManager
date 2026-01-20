@@ -1,72 +1,39 @@
 package com.salyan.filemanager;
-
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.ImageView;
-import android.widget.TextView;
+import android.view.*;
+import android.widget.*;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import java.io.File;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 public class FileAdapter extends RecyclerView.Adapter<FileAdapter.ViewHolder> {
-
     private final List<File> files;
     private final OnFileClickListener listener;
-
-    public interface OnFileClickListener {
-        void onFileClick(File file);
-    }
-
+    public interface OnFileClickListener { void onFileClick(File file); }
     public FileAdapter(List<File> files, OnFileClickListener listener) {
-        this.files = files;
-        this.listener = listener;
+        this.files = files; this.listener = listener;
     }
-
-    @NonNull
+    @NonNull @Override
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup p, int t) {
+        View v = LayoutInflater.from(p.getContext()).inflate(R.layout.item_file, p, false);
+        return new ViewHolder(v);
+    }
     @Override
-    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_file, parent, false);
-        return new ViewHolder(view);
+    public void onBindViewHolder(@NonNull ViewHolder h, int p) {
+        File f = files.get(p);
+        h.txtName.setText(f.getName());
+        h.txtDate.setText(new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(new Date(f.lastModified())));
+        h.imgIcon.setImageResource(f.isDirectory() ? android.R.drawable.ic_menu_archive : android.R.drawable.ic_menu_report_image);
+        h.itemView.setOnClickListener(v -> listener.onFileClick(f));
     }
-
-    @Override
-    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        File file = files.get(position);
-        holder.txtName.setText(file.getName());
-
-        // Formata a data igual à foto (DD/MM/AAAA)
-        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
-        holder.txtDate.setText(sdf.format(new Date(file.lastModified())));
-
-        // Ícones básicos: Pasta vs Arquivo
-        if (file.isDirectory()) {
-            holder.imgIcon.setImageResource(android.R.drawable.ic_menu_archive); // Ícone de pasta
-        } else {
-            holder.imgIcon.setImageResource(android.R.drawable.ic_menu_report_image); // Ícone de arquivo
-        }
-
-        holder.itemView.setOnClickListener(v -> listener.onFileClick(file));
-    }
-
-    @Override
-    public int getItemCount() {
-        return files.size();
-    }
-
+    @Override public int getItemCount() { return files.size(); }
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        ImageView imgIcon;
-        TextView txtName, txtDate;
-
-        public ViewHolder(@NonNull View itemView) {
-            super(itemView);
-            imgIcon = itemView.findViewById(R.id.img_icon);
-            txtName = itemView.findViewById(R.id.txt_name);
-            txtDate = itemView.findViewById(R.id.txt_date);
+        ImageView imgIcon; TextView txtName, txtDate;
+        public ViewHolder(View i) { super(i);
+            imgIcon = i.findViewById(R.id.img_icon);
+            txtName = i.findViewById(R.id.txt_name);
+            txtDate = i.findViewById(R.id.txt_date);
         }
     }
 }

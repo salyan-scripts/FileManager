@@ -1,79 +1,39 @@
 package com.salyan.filemanager;
-
-import android.os.Bundle;
-import android.os.Environment;
+import android.os.*;
 import android.widget.TextView;
-import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.*;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public class MainActivity extends AppCompatActivity {
-
-    private RecyclerView recyclerView;
-    private TextView pathView;
-    private File currentFolder;
-
+    private RecyclerView rv; private TextView tv; private File current;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        pathView = findViewById(R.id.path_view);
-        recyclerView = findViewById(R.id.recycler_view);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-
-        // Ponto de partida: Memória Interna
-        File root = Environment.getExternalStorageDirectory();
-        updateList(root);
+        tv = findViewById(R.id.path_view);
+        rv = findViewById(R.id.recycler_view);
+        rv.setLayoutManager(new LinearLayoutManager(this));
+        updateList(Environment.getExternalStorageDirectory());
     }
-
     private void updateList(File folder) {
-        currentFolder = folder;
-        pathView.setText(folder.getAbsolutePath());
-
-        File[] filesArray = folder.listFiles();
-        List<File> fileList = new ArrayList<>();
-
-        if (filesArray != null) {
-            fileList.addAll(Arrays.asList(filesArray));
-            
-            // Ordenação: Pastas primeiro, depois ordem alfabética
-            Collections.sort(fileList, (f1, f2) -> {
+        current = folder; tv.setText(folder.getAbsolutePath());
+        File[] fa = folder.listFiles();
+        List<File> fl = new ArrayList<>();
+        if (fa != null) {
+            fl.addAll(Arrays.asList(fa));
+            Collections.sort(fl, (f1, f2) -> {
                 if (f1.isDirectory() && !f2.isDirectory()) return -1;
                 if (!f1.isDirectory() && f2.isDirectory()) return 1;
                 return f1.getName().toLowerCase().compareTo(f2.getName().toLowerCase());
             });
         }
-
-        FileAdapter adapter = new FileAdapter(fileList, file -> {
-            if (file.isDirectory()) {
-                updateList(file);
-            } else {
-                Toast.makeText(this, "Arquivo: " + file.getName(), Toast.LENGTH_SHORT).show();
-            }
-        });
-        
-        recyclerView.setAdapter(adapter);
+        rv.setAdapter(new FileAdapter(fl, f -> { if (f.isDirectory()) updateList(f); }));
     }
-
     @Override
     public void onBackPressed() {
-        // Se puder voltar para a pasta pai, volta. Senão, fecha o app.
-        File parent = currentFolder.getParentFile();
-        if (parent != null && currentFolder.getAbsolutePath().contains(Environment.getExternalStorageDirectory().getAbsolutePath())) {
-            if (currentFolder.equals(Environment.getExternalStorageDirectory())) {
-                super.onBackPressed();
-            } else {
-                updateList(parent);
-            }
-        } else {
-            super.onBackPressed();
-        }
+        if (!current.equals(Environment.getExternalStorageDirectory())) updateList(current.getParentFile());
+        else super.onBackPressed();
     }
 }
