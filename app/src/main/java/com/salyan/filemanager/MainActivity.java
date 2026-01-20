@@ -2,172 +2,123 @@ package com.salyan.filemanager;
 
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Build;
-import android.os.Bundle;
-import android.os.Environment;
+import android.os.*;
 import android.provider.Settings;
-import android.text.Editable;
-import android.text.TextWatcher;
+import android.view.*;
 import android.widget.*;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import java.io.*;
-import java.nio.channels.FileChannel;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 public class MainActivity extends AppCompatActivity {
     private File currentDir;
     private ListView listView;
-    private File fileToCopy = null;
-    private ArrayAdapter<String> adapter;
-    private ArrayList<String> fileList = new ArrayList<>();
     private TextView pathDisplay;
+    private File fileToMoveOrCopy = null;
+    private boolean isCut = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Layout principal
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(20, 20, 20, 20);
+        // Layout Principal (Cópia fiel do seu modelo)
+        LinearLayout mainLayout = new LinearLayout(this);
+        mainLayout.setOrientation(LinearLayout.VERTICAL);
+        mainLayout.setBackgroundColor(0xFFF0F0F0);
 
-        // Indicador de Caminho (Breadcrumb)
-        pathDisplay = new TextView(this);
-        pathDisplay.setPadding(0, 10, 0, 10);
-        pathDisplay.setTextSize(14);
-        layout.addView(pathDisplay);
+        // Toolbar superior (Adm. de arquivos)
+        TextView toolbar = new TextView(this);
+        toolbar.setText(" Adm. de arquivos");
+        toolbar.setTextSize(20);
+        toolbar.setPadding(30, 40, 30, 40);
+        toolbar.setBackgroundColor(0xFFFFFFFF);
+        mainLayout.addView(toolbar);
 
-        // Barra de Busca
-        EditText search = new EditText(this);
-        search.setHint("🔍 Buscar arquivos...");
-        layout.addView(search);
+        // Sistema de Abas (Tabs)
+        HorizontalScrollView tabScroll = new HorizontalScrollView(this);
+        LinearLayout tabs = new LinearLayout(this);
+        String[] tabNames = {"↑", "Memória interna", "Android", "data"};
+        for (String tabName : tabNames) {
+            Button b = new Button(this, null, android.R.attr.borderlessButtonStyle);
+            b.setText(tabName);
+            tabs.addView(b);
+            if(tabName.equals("Memória interna")) b.setOnClickListener(v -> {
+                currentDir = Environment.getExternalStorageDirectory();
+                loadFiles();
+            });
+        }
+        tabScroll.addView(tabs);
+        mainLayout.addView(tabScroll);
 
-        // Botões
-        LinearLayout btnBar = new LinearLayout(this);
-        Button btnNew = new Button(this); btnNew.setText("📁 Nova Pasta");
-        Button btnPaste = new Button(this); btnPaste.setText("📋 Colar");
-        btnBar.addView(btnNew); btnBar.addView(btnPaste);
-        layout.addView(btnBar);
-
+        // Área de conteúdo
         listView = new ListView(this);
-        layout.addView(listView);
-        setContentView(layout);
+        listView.setBackgroundColor(0xFFFFFFFF);
+        mainLayout.addView(listView);
 
+        setContentView(mainLayout);
         checkPermissions();
-
         currentDir = Environment.getExternalStorageDirectory();
         loadFiles();
 
-        // Lógica de Busca
-        search.addTextChangedListener(new TextWatcher() {
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if(adapter != null) adapter.getFilter().filter(s);
-            }
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            public void afterTextChanged(Editable s) {}
-        });
-
-        // Clique para Navegar
         listView.setOnItemClickListener((p, v, pos, id) -> {
-            String selected = (String) p.getItemAtPosition(pos);
-            // Remove o emoji para pegar o nome real do arquivo
-            String realName = selected.substring(3);
-            File f = new File(currentDir, realName);
-            if(f.isDirectory()) {
-                currentDir = f;
-                search.setText("");
-                loadFiles();
-            }
+            File f = (File) v.getTag();
+            if(f.isDirectory()) { currentDir = f; loadFiles(); }
         });
 
-        // Clique Longo para Opções
         listView.setOnItemLongClickListener((p, v, pos, id) -> {
-            String selected = (String) p.getItemAtPosition(pos);
-            String realName = selected.substring(3);
-            showOptions(realName);
+            showContextMenu((File) v.getTag());
             return true;
         });
-
-        btnNew.setOnClickListener(v -> showNewFolderDialog());
-        btnPaste.setOnClickListener(v -> pasteFile());
-    }
-
-    private void checkPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!Environment.isExternalStorageManager()) {
-                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-                Uri uri = Uri.fromParts("package", getPackageName(), null);
-                intent.setData(uri);
-                startActivity(intent);
-            }
-        }
     }
 
     private void loadFiles() {
-        pathDisplay.setText("Local: " + currentDir.getAbsolutePath());
         File[] files = currentDir.listFiles();
-        fileList.clear();
-        if(files != null) {
-            for(File f : files) {
-                String prefix = f.isDirectory() ? "📁 " : "📄 ";
-                fileList.add(prefix + f.getName());
+        List<File> fileList = new ArrayList<>();
+        if(files != null) Collections.addAll(fileList, files);
+        
+        BaseAdapter adapter = new BaseAdapter() {
+            @Override public int getCount() { return fileList.size(); }
+            @Override public Object getItem(int i) { return fileList.get(i); }
+            @Override public long getItemId(int i) { return i; }
+            @Override public View getView(int i, View view, ViewGroup vg) {
+                if(view == null) view = getLayoutInflater().inflate(R.layout.line_item, null);
+                File f = fileList.get(i);
+                ((TextView)view.findViewById(R.id.item_icon)).setText(f.isDirectory() ? "📁" : "📄");
+                ((TextView)view.findViewById(R.id.item_name)).setText(f.getName());
+                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
+                ((TextView)view.findViewById(R.id.item_date)).setText(sdf.format(new Date(f.lastModified())));
+                view.setTag(f);
+                return view;
             }
-        }
-        Collections.sort(fileList);
-        adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, fileList);
+        };
         listView.setAdapter(adapter);
     }
 
-    private void showOptions(String name) {
-        String[] opts = {"Copiar", "Renomear", "Deletar"};
-        new AlertDialog.Builder(this).setTitle(name).setItems(opts, (d, w) -> {
-            File f = new File(currentDir, name);
-            if(w == 0) { fileToCopy = f; Toast.makeText(this, "Copiado", Toast.LENGTH_SHORT).show(); }
-            else if(w == 1) showRename(name);
-            else if(f.delete()) loadFiles();
+    private void showContextMenu(File f) {
+        String[] opts = {"Apagar", "Mover", "Copiar", "Renomear"};
+        new AlertDialog.Builder(this).setTitle(f.getName()).setItems(opts, (d, w) -> {
+            if(w == 0) { f.delete(); loadFiles(); }
+            else if(w == 1) { fileToMoveOrCopy = f; isCut = true; Toast.makeText(this, "Selecione o destino e use o menu", Toast.LENGTH_LONG).show(); }
+            else if(w == 2) { fileToMoveOrCopy = f; isCut = false; }
+            else if(w == 3) showRenameDialog(f);
         }).show();
     }
 
-    private void pasteFile() {
-        if(fileToCopy == null) return;
-        File dest = new File(currentDir, fileToCopy.getName());
-        try {
-            copyStream(fileToCopy, dest);
-            loadFiles();
-            Toast.makeText(this, "Sucesso!", Toast.LENGTH_SHORT).show();
-        } catch (Exception e) { Toast.makeText(this, "Erro", Toast.LENGTH_SHORT).show(); }
-    }
-
-    private void copyStream(File s, File d) throws IOException {
-        try (InputStream in = new FileInputStream(s); OutputStream out = new FileOutputStream(d)) {
-            byte[] buf = new byte[1024]; int len;
-            while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
-        }
-    }
-
-    private void showNewFolderDialog() {
-        EditText in = new EditText(this);
-        new AlertDialog.Builder(this).setTitle("Nova Pasta").setView(in)
-            .setPositiveButton("Criar", (d, w) -> {
-                if(new File(currentDir, in.getText().toString()).mkdir()) loadFiles();
-            }).show();
-    }
-
-    private void showRename(String oldName) {
-        EditText in = new EditText(this); in.setText(oldName);
-        new AlertDialog.Builder(this).setTitle("Renomear").setView(in)
+    private void showRenameDialog(File f) {
+        EditText input = new EditText(this);
+        input.setText(f.getName());
+        new AlertDialog.Builder(this).setTitle("Renomear").setView(input)
             .setPositiveButton("OK", (d, w) -> {
-                if(new File(currentDir, oldName).renameTo(new File(currentDir, in.getText().toString()))) loadFiles();
+                f.renameTo(new File(f.getParent(), input.getText().toString()));
+                loadFiles();
             }).show();
     }
 
-    @Override
-    public void onBackPressed() {
-        if (!currentDir.equals(Environment.getExternalStorageDirectory())) {
-            currentDir = currentDir.getParentFile();
-            loadFiles();
-        } else super.onBackPressed();
+    private void checkPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+            startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.fromParts("package", getPackageName(), null)));
+        }
     }
 }
