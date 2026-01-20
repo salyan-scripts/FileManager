@@ -23,10 +23,9 @@ public class MainActivity extends AppCompatActivity {
 
         listView = findViewById(R.id.listView);
         currentDir = Environment.getExternalStorageDirectory();
-        
         loadFiles();
 
-        // Clique curto: Navegar
+        // Clique Curto: Navegar
         listView.setOnItemClickListener((parent, view, position, id) -> {
             String name = (String) parent.getItemAtPosition(position);
             File clickedFile = new File(currentDir, name);
@@ -36,10 +35,10 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Clique LONGO: Renomear
+        // Clique Longo: Menu de Opções (Renomear/Deletar)
         listView.setOnItemLongClickListener((parent, view, position, id) -> {
-            String oldName = (String) parent.getItemAtPosition(position);
-            showRenameDialog(oldName);
+            String fileName = (String) parent.getItemAtPosition(position);
+            showOptionsDialog(fileName);
             return true;
         });
     }
@@ -55,26 +54,55 @@ public class MainActivity extends AppCompatActivity {
         listView.setAdapter(adapter);
     }
 
-    private void showRenameDialog(String oldName) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Renomear: " + oldName);
-        
-        final EditText input = new EditText(this);
-        input.setText(oldName);
-        builder.setView(input);
+    private void showOptionsDialog(String fileName) {
+        String[] options = {"Renomear", "Deletar"};
+        new AlertDialog.Builder(this)
+            .setTitle(fileName)
+            .setItems(options, (dialog, which) -> {
+                if (which == 0) showRenameDialog(fileName);
+                else showDeleteConfirm(fileName);
+            }).show();
+    }
 
-        builder.setPositiveButton("OK", (dialog, which) -> {
-            String newName = input.getText().toString();
-            File oldFile = new File(currentDir, oldName);
-            File newFile = new File(currentDir, newName);
-            if (oldFile.renameTo(newFile)) {
-                Toast.makeText(this, "Renomeado!", Toast.LENGTH_SHORT).show();
-                loadFiles();
-            } else {
-                Toast.makeText(this, "Erro ao renomear", Toast.LENGTH_SHORT).show();
-            }
-        });
-        builder.setNegativeButton("Cancelar", null);
-        builder.show();
+    private void showRenameDialog(String oldName) {
+        EditText input = new EditText(this);
+        input.setText(oldName);
+        new AlertDialog.Builder(this)
+            .setTitle("Novo nome")
+            .setView(input)
+            .setPositiveButton("OK", (d, w) -> {
+                File oldF = new File(currentDir, oldName);
+                File newF = new File(currentDir, input.getText().toString());
+                if (oldF.renameTo(newF)) {
+                    loadFiles();
+                } else {
+                    Toast.makeText(this, "Erro ao renomear", Toast.LENGTH_SHORT).show();
+                }
+            }).show();
+    }
+
+    private void showDeleteConfirm(String fileName) {
+        new AlertDialog.Builder(this)
+            .setTitle("Excluir")
+            .setMessage("Deseja apagar " + fileName + "?")
+            .setPositiveButton("Sim", (d, w) -> {
+                File f = new File(currentDir, fileName);
+                if (f.delete()) {
+                    loadFiles();
+                } else {
+                    Toast.makeText(this, "Erro ao deletar", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .setNegativeButton("Não", null).show();
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (!currentDir.equals(Environment.getExternalStorageDirectory())) {
+            currentDir = currentDir.getParentFile();
+            loadFiles();
+        } else {
+            super.onBackPressed();
+        }
     }
 }
