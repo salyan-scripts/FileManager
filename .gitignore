@@ -1,0 +1,15 @@
+# Scripts e Ferramentas
+*.sh
+node_modules/
+package-lock.json
+
+# Android Build
+.gradle/
+build/
+app/build/
+*.apk
+capacitor.config.json
+
+# Logs e Temporários
+*.log
+.env
