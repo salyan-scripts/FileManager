@@ -13,16 +13,26 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Setup Gradle Wrapper
+        run: |
+          # Garante a existência da pasta
+          mkdir -p gradle/wrapper
+          # Baixa o JAR binário oficial
+          wget -q -O gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v7.5.0/gradle/wrapper/gradle-wrapper.jar
+          # Garante que o arquivo de propriedades esteja correto
+          echo "distributionUrl=https\://services.gradle.org/distributions/gradle-7.5-bin.zip" > gradle/wrapper/gradle-wrapper.properties
+          echo "distributionBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
+          echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
+          echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
+          echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
+
       - name: Build with Gradle
         run: |
-          # O comando abaixo baixa o gradle-wrapper.jar original direto da fonte
-          # para evitar erros de "no main manifest attribute"
-          wget -q -O gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v7.5.0/gradle/wrapper/gradle-wrapper.jar
           chmod +x gradlew
           ./gradlew assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Salyan-Manager-Fixed
+          name: Salyan-Manager-V3
           path: app/build/outputs/apk/release/*.apk
