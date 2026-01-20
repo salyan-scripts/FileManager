@@ -8,6 +8,7 @@ import android.text.TextWatcher;
 import android.view.*;
 import android.widget.*;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -17,8 +18,7 @@ import java.util.*;
 
 public class MainActivity extends AppCompatActivity {
 
-    private File currentDir;
-    private File clipboardFile;
+    private File currentDir, clipboardFile;
     private boolean isMoveAction = false;
 
     private ListView listView;
@@ -37,9 +37,10 @@ public class MainActivity extends AppCompatActivity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE);
 
-        // Barra superior
+        // Barra superior de Ações (Fiel ao seu print)
         LinearLayout topActions = new LinearLayout(this);
         topActions.setPadding(20, 20, 20, 20);
+        topActions.setGravity(Gravity.CENTER_HORIZONTAL);
 
         Button btnNewFolder = new Button(this);
         btnNewFolder.setText("NOVA PASTA");
@@ -54,10 +55,10 @@ public class MainActivity extends AppCompatActivity {
         topActions.addView(btnPaste);
         root.addView(topActions);
 
-        // Busca
+        // Campo de Busca
         searchBar = new EditText(this);
         searchBar.setHint("Buscar...");
-        searchBar.setPadding(40, 20, 40, 20);
+        searchBar.setPadding(40, 30, 40, 30);
         searchBar.setBackgroundColor(Color.parseColor("#F5F5F5"));
         searchBar.addTextChangedListener(new TextWatcher() {
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -68,9 +69,12 @@ public class MainActivity extends AppCompatActivity {
         });
         root.addView(searchBar);
 
+        // Exibição do Caminho Atual
         pathDisplay = new TextView(this);
-        pathDisplay.setPadding(40, 10, 40, 10);
-        pathDisplay.setTextSize(12);
+        pathDisplay.setPadding(40, 15, 40, 15);
+        pathDisplay.setTextSize(13);
+        pathDisplay.setTextColor(Color.DKGRAY);
+        pathDisplay.setBackgroundColor(Color.parseColor("#EEEEEE"));
         root.addView(pathDisplay);
 
         listView = new ListView(this);
@@ -96,15 +100,16 @@ public class MainActivity extends AppCompatActivity {
         loadFiles();
     }
 
-    // =================== FILE LIST ===================
+    // =================== LOGICA DE ARQUIVOS ===================
 
     private void loadFiles() {
-        pathDisplay.setText(currentDir.getAbsolutePath());
+        pathDisplay.setText("Pasta: " + currentDir.getAbsolutePath());
         File[] files = currentDir.listFiles();
 
         fileList.clear();
         if (files != null) fileList.addAll(Arrays.asList(files));
 
+        // Organizar: Pastas primeiro, depois arquivos por ordem alfabetica
         Collections.sort(fileList, (a, b) -> {
             if (a.isDirectory() && !b.isDirectory()) return -1;
             if (!a.isDirectory() && b.isDirectory()) return 1;
@@ -124,22 +129,15 @@ public class MainActivity extends AppCompatActivity {
         listView.setAdapter(new FileAdapter());
     }
 
-    // =================== CONTEXT MENU ===================
+    // =================== MENU DE CONTEXTO ===================
 
     private void showContextMenu(File file) {
         List<String> options = new ArrayList<>();
-
-        if (file.isDirectory()) {
-            options.add("Apagar");
-            options.add("Renomear");
-            options.add("Detalhes");
-            options.add("Adicionar à tela inicial");
-        } else {
-            options.add("Copiar");
-            options.add("Renomear");
-            options.add("Apagar");
-            options.add("Detalhes");
-        }
+        options.add("Copiar");
+        options.add("Mover");
+        options.add("Renomear");
+        options.add("Apagar");
+        options.add("Detalhes");
 
         new AlertDialog.Builder(this)
                 .setTitle(file.getName())
@@ -150,6 +148,13 @@ public class MainActivity extends AppCompatActivity {
                             clipboardFile = file;
                             isMoveAction = false;
                             btnPaste.setEnabled(true);
+                            Toast.makeText(this, "Copiado: " + file.getName(), Toast.LENGTH_SHORT).show();
+                            break;
+                        case "Mover":
+                            clipboardFile = file;
+                            isMoveAction = true;
+                            btnPaste.setEnabled(true);
+                            Toast.makeText(this, "Pronto para mover", Toast.LENGTH_SHORT).show();
                             break;
                         case "Apagar":
                             deleteConfirm(file);
@@ -160,30 +165,30 @@ public class MainActivity extends AppCompatActivity {
                         case "Detalhes":
                             showDetails(file);
                             break;
-                        case "Adicionar à tela inicial":
-                            addShortcut(file);
-                            break;
                     }
                 }).show();
     }
 
-    // =================== ACTIONS ===================
+    // =================== ACOES (COLAR, CRIAR, DELETAR) ===================
 
     private void pasteFile() {
         if (clipboardFile == null) return;
-
         File dest = new File(currentDir, clipboardFile.getName());
+
         try {
             if (isMoveAction) {
-                clipboardFile.renameTo(dest);
+                if (clipboardFile.renameTo(dest)) {
+                    Toast.makeText(this, "Movido com sucesso", Toast.LENGTH_SHORT).show();
+                }
             } else {
                 copyFile(clipboardFile, dest);
+                Toast.makeText(this, "Copiado com sucesso", Toast.LENGTH_SHORT).show();
             }
-            clipboardFile = null;
             btnPaste.setEnabled(false);
+            clipboardFile = null;
             loadFiles();
-        } catch (IOException e) {
-            Toast.makeText(this, "Erro ao colar", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Erro na operação", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -196,12 +201,13 @@ public class MainActivity extends AppCompatActivity {
 
     private void createFolderDialog() {
         EditText input = new EditText(this);
+        input.setHint("Nome da pasta");
         new AlertDialog.Builder(this)
-                .setTitle("Nova pasta")
+                .setTitle("Nova Pasta")
                 .setView(input)
                 .setPositiveButton("Criar", (d, w) -> {
-                    new File(currentDir, input.getText().toString()).mkdir();
-                    loadFiles();
+                    File folder = new File(currentDir, input.getText().toString());
+                    if (folder.mkdir()) loadFiles();
                 }).show();
     }
 
@@ -212,8 +218,7 @@ public class MainActivity extends AppCompatActivity {
                 .setTitle("Renomear")
                 .setView(input)
                 .setPositiveButton("OK", (d, w) -> {
-                    file.renameTo(new File(file.getParent(), input.getText().toString()));
-                    loadFiles();
+                    if (file.renameTo(new File(file.getParent(), input.getText().toString()))) loadFiles();
                 }).show();
     }
 
@@ -229,34 +234,19 @@ public class MainActivity extends AppCompatActivity {
     private void deleteRecursive(File f) {
         if (f.isDirectory()) {
             File[] children = f.listFiles();
-            if (children != null) {
-                for (File c : children) deleteRecursive(c);
-            }
+            if (children != null) for (File c : children) deleteRecursive(c);
         }
         f.delete();
     }
 
     private void showDetails(File f) {
-        String info =
-                "Nome: " + f.getName() + "\n\n" +
-                "Caminho:\n" + f.getAbsolutePath() + "\n\n" +
-                "Tamanho: " + f.length() + " bytes\n\n" +
-                "Última modificação:\n" + new Date(f.lastModified());
-
-        new AlertDialog.Builder(this)
-                .setTitle("Detalhes")
-                .setMessage(info)
-                .setPositiveButton("OK", null)
-                .show();
+        String info = "Nome: " + f.getName() + "\n" +
+                     "Tamanho: " + (f.length() / 1024) + " KB\n" +
+                     "Modificado: " + new Date(f.lastModified());
+        new AlertDialog.Builder(this).setTitle("Detalhes").setMessage(info).setPositiveButton("OK", null).show();
     }
 
-    private void addShortcut(File f) {
-        Toast.makeText(this,
-                "Atalho criado para:\n" + f.getName(),
-                Toast.LENGTH_SHORT).show();
-    }
-
-    // =================== LIST ADAPTER ===================
+    // =================== ADAPTER (VISUAL DA LISTA) ===================
 
     class FileAdapter extends BaseAdapter {
         public int getCount() { return filteredList.size(); }
@@ -264,46 +254,30 @@ public class MainActivity extends AppCompatActivity {
         public long getItemId(int i) { return i; }
 
         public View getView(int i, View v, ViewGroup vg) {
-            LinearLayout l = new LinearLayout(MainActivity.this);
-            l.setPadding(40, 30, 40, 30);
-            l.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout itemLayout = new LinearLayout(MainActivity.this);
+            itemLayout.setPadding(40, 35, 40, 35);
+            itemLayout.setGravity(Gravity.CENTER_VERTICAL);
 
             File f = filteredList.get(i);
 
-            TextView t = new TextView(MainActivity.this);
-            t.setText(f.getName());
-            t.setTextSize(16);
-            t.setTextColor(Color.BLACK);
+            // Icone Recriado
+            TextView icon = new TextView(MainActivity.this);
+            icon.setText(f.isDirectory() ? "📁 " : "📄 ");
+            icon.setTextSize(22);
+            icon.setTextColor(f.isDirectory() ? Color.parseColor("#FFA000") : Color.GRAY);
 
-            l.addView(t);
-            return l;
+            // Nome do arquivo
+            TextView name = new TextView(MainActivity.this);
+            name.setText(f.getName());
+            name.setTextSize(16);
+            name.setTextColor(Color.BLACK);
+            name.setPadding(20, 0, 0, 0);
+
+            itemLayout.addView(icon);
+            itemLayout.addView(name);
+            return itemLayout;
         }
     }
-
-    // =================== OPTIONS MENU (⋮) ===================
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        menu.add("Nova pasta");
-        menu.add("Ordenar por nome");
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getTitle().toString()) {
-            case "Nova pasta":
-                createFolderDialog();
-                return true;
-            case "Ordenar por nome":
-                Collections.sort(fileList, Comparator.comparing(File::getName));
-                filter(searchBar.getText().toString());
-                return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
-
-    // =================== BACK ===================
 
     @Override
     public void onBackPressed() {
@@ -315,4 +289,3 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 }
-
