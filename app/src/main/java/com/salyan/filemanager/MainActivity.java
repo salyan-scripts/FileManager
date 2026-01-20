@@ -2,6 +2,7 @@ package com.salyan.filemanager;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.DocumentsContract;
@@ -52,34 +53,52 @@ public class MainActivity extends Activity {
 
     private void loadFiles() {
         ArrayList<FileItem> items = new ArrayList<>();
+        Cursor cursor = null;
+
         try {
             Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
                 currentUri,
                 DocumentsContract.getTreeDocumentId(currentUri)
             );
 
-            var c = getContentResolver().query(
+            cursor = getContentResolver().query(
                 childrenUri,
-                null, null, null, null
+                null,
+                null,
+                null,
+                null
             );
 
-            while (c.moveToNext()) {
-                String name = c.getString(
-                    c.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-                );
-                String mime = c.getString(
-                    c.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
-                );
-                boolean isDir = DocumentsContract.Document.MIME_TYPE_DIR.equals(mime);
-                items.add(new FileItem(name, isDir));
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    String name = cursor.getString(
+                        cursor.getColumnIndexOrThrow(
+                            DocumentsContract.Document.COLUMN_DISPLAY_NAME
+                        )
+                    );
+
+                    String mime = cursor.getString(
+                        cursor.getColumnIndexOrThrow(
+                            DocumentsContract.Document.COLUMN_MIME_TYPE
+                        )
+                    );
+
+                    boolean isDir =
+                        DocumentsContract.Document.MIME_TYPE_DIR.equals(mime);
+
+                    items.add(new FileItem(name, isDir));
+                }
             }
-            c.close();
         } catch (Exception e) {
             e.printStackTrace();
+        } finally {
+            if (cursor != null) cursor.close();
         }
 
         adapter = new FileAdapter(this, items);
         listView.setAdapter(adapter);
-        pathDisplay.setText(currentUri.getPath());
+        pathDisplay.setText(
+            currentUri != null ? currentUri.getPath() : ""
+        );
     }
 }
