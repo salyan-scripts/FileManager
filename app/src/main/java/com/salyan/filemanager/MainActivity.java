@@ -2,23 +2,20 @@ package com.salyan.filemanager;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.DocumentsContract;
-import android.view.View;
 import android.widget.*;
-import androidx.annotation.Nullable;
+import androidx.documentfile.provider.DocumentFile;
 import java.util.ArrayList;
 
 public class MainActivity extends Activity {
 
-    private static final int REQ_OPEN_TREE = 100;
+    private static final int REQ_TREE = 1;
     private Uri currentUri;
+    private DocumentFile clipboard;
     private ListView listView;
-    private TextView pathDisplay;
-    private EditText searchBar;
-    private FileAdapter adapter;
+    private TextView path;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -26,79 +23,61 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         listView = findViewById(R.id.listView);
-        pathDisplay = findViewById(R.id.pathDisplay);
-        searchBar = findViewById(R.id.searchBar);
+        path = findViewById(R.id.pathDisplay);
 
-        findViewById(R.id.btnMenu).setOnClickListener(v -> openTree());
-        findViewById(R.id.btnSearch).setOnClickListener(v ->
-            searchBar.setVisibility(
-                searchBar.getVisibility() == View.GONE ? View.VISIBLE : View.GONE
-            )
-        );
+        findViewById(R.id.btnOpen).setOnClickListener(v -> openTree());
+        findViewById(R.id.btnPaste).setOnClickListener(v -> paste());
+
+        listView.setOnItemClickListener((a, v, p, i) -> {
+            FileItem item = (FileItem) a.getItemAtPosition(p);
+            if (item.file.isDirectory()) {
+                currentUri = item.file.getUri();
+                load();
+            } else {
+                openWith(item.file);
+            }
+        });
+
+        listView.setOnItemLongClickListener((a, v, p, i) -> {
+            FileItem item = (FileItem) a.getItemAtPosition(p);
+            clipboard = item.file;
+            return true;
+        });
     }
 
     private void openTree() {
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        startActivityForResult(i, REQ_OPEN_TREE);
+        startActivityForResult(i, REQ_TREE);
     }
 
     @Override
-    protected void onActivityResult(int r, int c, @Nullable Intent d) {
-        super.onActivityResult(r, c, d);
-        if (r == REQ_OPEN_TREE && c == RESULT_OK && d != null) {
+    protected void onActivityResult(int r, int c, Intent d) {
+        if (r == REQ_TREE && c == RESULT_OK) {
             currentUri = d.getData();
-            loadFiles();
+            load();
         }
     }
 
-    private void loadFiles() {
-        ArrayList<FileItem> items = new ArrayList<>();
-        Cursor cursor = null;
+    private void load() {
+        DocumentFile dir = DocumentFile.fromTreeUri(this, currentUri);
+        ArrayList<FileItem> list = new ArrayList<>();
+        for (DocumentFile f : dir.listFiles())
+            list.add(new FileItem(f));
+        listView.setAdapter(new FileAdapter(this, list));
+        path.setText(currentUri.getPath());
+    }
 
-        try {
-            Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
-                currentUri,
-                DocumentsContract.getTreeDocumentId(currentUri)
-            );
+    private void paste() {
+        if (clipboard == null || currentUri == null) return;
+        DocumentFile dest = DocumentFile.fromTreeUri(this, currentUri);
+        clipboard.copyTo(dest);
+        load();
+    }
 
-            cursor = getContentResolver().query(
-                childrenUri,
-                null,
-                null,
-                null,
-                null
-            );
-
-            if (cursor != null) {
-                while (cursor.moveToNext()) {
-                    String name = cursor.getString(
-                        cursor.getColumnIndexOrThrow(
-                            DocumentsContract.Document.COLUMN_DISPLAY_NAME
-                        )
-                    );
-
-                    String mime = cursor.getString(
-                        cursor.getColumnIndexOrThrow(
-                            DocumentsContract.Document.COLUMN_MIME_TYPE
-                        )
-                    );
-
-                    boolean isDir =
-                        DocumentsContract.Document.MIME_TYPE_DIR.equals(mime);
-
-                    items.add(new FileItem(name, isDir));
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            if (cursor != null) cursor.close();
-        }
-
-        adapter = new FileAdapter(this, items);
-        listView.setAdapter(adapter);
-        pathDisplay.setText(
-            currentUri != null ? currentUri.getPath() : ""
-        );
+    private void openWith(DocumentFile f) {
+        Intent i = new Intent(Intent.ACTION_VIEW);
+        i.setDataAndType(f.getUri(), f.getType());
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(i);
     }
 }

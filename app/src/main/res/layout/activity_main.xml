@@ -4,40 +4,25 @@
     android:layout_height="match_parent">
 
     <LinearLayout
-        android:padding="16dp"
         android:orientation="horizontal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <TextView
-            android:id="@+id/title"
-            android:text="File Manager"
-            android:textSize="18sp"
-            android:layout_weight="1"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"/>
-
-        <TextView android:id="@+id/btnSearch"
-            android:text="Search"
+        <Button
+            android:id="@+id/btnOpen"
+            android:text="Abrir pasta"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>
 
-        <TextView android:id="@+id/btnMenu"
-            android:text="Open"
+        <Button
+            android:id="@+id/btnPaste"
+            android:text="Colar"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>
     </LinearLayout>
 
-    <EditText
-        android:id="@+id/searchBar"
-        android:visibility="gone"
-        android:hint="Search"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
-
     <TextView
         android:id="@+id/pathDisplay"
-        android:textSize="12sp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 

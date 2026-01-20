@@ -1,11 +1,9 @@
 package com.salyan.filemanager;
 
-public class FileItem {
-    public String name;
-    public boolean isDir;
+import androidx.documentfile.provider.DocumentFile;
 
-    public FileItem(String n, boolean d) {
-        name = n;
-        isDir = d;
-    }
+public class FileItem {
+    public DocumentFile file;
+    public FileItem(DocumentFile f) { file = f; }
+    public String toString() { return file.getName(); }
 }
