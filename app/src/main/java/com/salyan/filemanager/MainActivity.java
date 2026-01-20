@@ -1,62 +1,80 @@
 package com.salyan.filemanager;
-import android.os.*;
-import android.widget.*;
+
+import android.os.Bundle;
+import android.os.Environment;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
+import android.widget.EditText;
+import android.widget.Toast;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.recyclerview.widget.*;
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
 
 public class MainActivity extends AppCompatActivity {
-    private RecyclerView rv; private TextView tv, storageText; 
-    private ProgressBar storageBar; private File current;
+    private File currentDir;
+    private ListView listView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        tv = findViewById(R.id.path_view);
-        storageText = findViewById(R.id.storage_text);
-        storageBar = findViewById(R.id.storage_bar);
-        rv = findViewById(R.id.recycler_view);
-        rv.setLayoutManager(new LinearLayoutManager(this));
+
+        listView = findViewById(R.id.listView);
+        currentDir = Environment.getExternalStorageDirectory();
         
-        updateStorageInfo();
-        updateList(Environment.getExternalStorageDirectory());
+        loadFiles();
+
+        // Clique curto: Navegar
+        listView.setOnItemClickListener((parent, view, position, id) -> {
+            String name = (String) parent.getItemAtPosition(position);
+            File clickedFile = new File(currentDir, name);
+            if (clickedFile.isDirectory()) {
+                currentDir = clickedFile;
+                loadFiles();
+            }
+        });
+
+        // Clique LONGO: Renomear
+        listView.setOnItemLongClickListener((parent, view, position, id) -> {
+            String oldName = (String) parent.getItemAtPosition(position);
+            showRenameDialog(oldName);
+            return true;
+        });
     }
 
-    private void updateStorageInfo() {
-        StatFs stat = new StatFs(Environment.getExternalStorageDirectory().getPath());
-        long blockSize = stat.getBlockSizeLong();
-        long totalBlocks = stat.getBlockCountLong();
-        long availableBlocks = stat.getAvailableBlocksLong();
-
-        long totalSpace = (totalBlocks * blockSize) / (1024 * 1024 * 1024);
-        long freeSpace = (availableBlocks * blockSize) / (1024 * 1024 * 1024);
-        long usedSpace = totalSpace - freeSpace;
-
-        storageText.setText(usedSpace + " GB usados de " + totalSpace + " GB");
-        storageBar.setMax((int)totalSpace);
-        storageBar.setProgress((int)usedSpace);
-    }
-
-    private void updateList(File folder) {
-        current = folder; tv.setText(folder.getAbsolutePath());
-        File[] fa = folder.listFiles();
-        List<File> fl = new ArrayList<>();
-        if (fa != null) {
-            fl.addAll(Arrays.asList(fa));
-            Collections.sort(fl, (f1, f2) -> {
-                if (f1.isDirectory() && !f2.isDirectory()) return -1;
-                if (!f1.isDirectory() && f2.isDirectory()) return 1;
-                return f1.getName().toLowerCase().compareTo(f2.getName().toLowerCase());
-            });
+    private void loadFiles() {
+        File[] files = currentDir.listFiles();
+        ArrayList<String> fileList = new ArrayList<>();
+        if (files != null) {
+            for (File file : files) fileList.add(file.getName());
         }
-        rv.setAdapter(new FileAdapter(fl, f -> { if (f.isDirectory()) updateList(f); }));
+        Collections.sort(fileList);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, fileList);
+        listView.setAdapter(adapter);
     }
 
-    @Override
-    public void onBackPressed() {
-        if (!current.equals(Environment.getExternalStorageDirectory())) updateList(current.getParentFile());
-        else super.onBackPressed();
+    private void showRenameDialog(String oldName) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Renomear: " + oldName);
+        
+        final EditText input = new EditText(this);
+        input.setText(oldName);
+        builder.setView(input);
+
+        builder.setPositiveButton("OK", (dialog, which) -> {
+            String newName = input.getText().toString();
+            File oldFile = new File(currentDir, oldName);
+            File newFile = new File(currentDir, newName);
+            if (oldFile.renameTo(newFile)) {
+                Toast.makeText(this, "Renomeado!", Toast.LENGTH_SHORT).show();
+                loadFiles();
+            } else {
+                Toast.makeText(this, "Erro ao renomear", Toast.LENGTH_SHORT).show();
+            }
+        });
+        builder.setNegativeButton("Cancelar", null);
+        builder.show();
     }
 }
